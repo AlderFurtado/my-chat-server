@@ -26,7 +26,6 @@ services:
       - 3002:3002
     networks:
       - test-network
-    command: node_modules/.bin/nodemon --exec npm start
 
   db:
     build:
