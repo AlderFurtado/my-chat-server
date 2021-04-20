@@ -20,16 +20,24 @@ const io = socketIO(server, {
   },
 });
 
-const players = [];
+let players = [];
 
 io.on("connection", (socket) => {
   console.log("client connected");
 
-  socket.on("logIn", () => {
+  socket.on("logIn", (player) => {
     console.log(`player ${socket.id} is connected`);
-    players.push(socket.id);
+
+    if (players.find((player) => player == socket.id)) {
+      return socket.emit("you already connected");
+    }
+
+    const newPlayer = { ...player, socket_id: socket.id };
+    players.push(newPlayer);
+
+    socket.emit("user.registered", { ...newPlayer, isRegistered: true });
+    io.emit("allPlayers", players);
     console.log(players);
-    socket.emit("allPlayers", players);
   });
 
   socket.on("disconnect", () => {
