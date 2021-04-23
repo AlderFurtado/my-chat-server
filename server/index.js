@@ -15,35 +15,84 @@ const socketIO = require("socket.io");
 
 const io = socketIO(server, {
   cors: {
-    origin: "*",
+    origin: "http://localhost:3001",
     methods: ["GET", "POST"],
   },
 });
 
 let players = [];
+let rooms = [];
 
 io.on("connection", (socket) => {
   console.log("client connected");
 
-  socket.on("logIn", (player) => {
-    console.log(`player ${socket.id} is connected`);
+  socket.on("logIn", (player) => logIn(player, socket));
 
-    if (players.find((player) => player == socket.id)) {
-      return socket.emit("you already connected");
-    }
-
-    const newPlayer = { ...player, socket_id: socket.id };
-    players.push(newPlayer);
-
-    socket.emit("user.registered", { ...newPlayer, isRegistered: true });
-    io.emit("allPlayers", players);
-    console.log(players);
+  socket.on("checkRoom", (data) => {
+    checkRoom(socket.id, data.socketId, io, socket);
   });
 
-  socket.on("disconnect", () => {
-    console.log("Client disconnected");
-  });
+  socket.on("sendMessage", (data) =>
+    sendMessage(io, data.roomId, data.message, socket.id)
+  );
+
+  socket.on("disconnect", disconnect);
 });
+
+const logIn = (player, socket) => {
+  console.log(`player ${socket.id} is connected`);
+
+  if (players.find((player) => player == socket.id)) {
+    return socket.emit("you already connected");
+  }
+
+  const newPlayer = { ...player, socketId: socket.id };
+  players.push(newPlayer);
+
+  socket.emit("user.registered", { ...newPlayer, isRegistered: true });
+  io.emit("allPlayers", players);
+  console.log(players);
+};
+
+const checkRoom = (socketIdUser, socketIdGuess, io, socket) => {
+  const room = rooms.find(
+    (room) =>
+      room.socketIdUser === socketIdUser && room.socketIdGuess === socketIdGuess
+  );
+  if (room) {
+    socket.emit("getRoom", room.id);
+    return;
+  }
+
+  const newRoom = {
+    id: rooms.length,
+    socketIdUser: socketIdUser,
+    socketIdGuess: socketIdGuess,
+    messages: [],
+  };
+
+  rooms.push(newRoom);
+
+  socket.join(newRoom.id.toString());
+  socket.emit("getRoom", newRoom.id);
+  console.log("rooms", rooms);
+};
+
+const sendMessage = (io, roomId, content, senderId) => {
+  const room = rooms.find((room) => room.id == roomId);
+  const message = {
+    content,
+    senderId,
+    dateAt: new Date(),
+  };
+  room.messages.push(message);
+  io.to(room.id).emit("newPrivateMessage", message);
+  console.log(rooms);
+};
+
+const disconnect = () => {
+  console.log("Client disconnected");
+};
 
 server.listen("3002", () => {
   console.log("Server is listening on port 3002");
